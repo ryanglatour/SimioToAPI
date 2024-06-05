@@ -2,7 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using SimioAPI;
 using SimioAPI.Extensions;
 
@@ -65,11 +66,18 @@ namespace SimioToFastAPI
             pd.Description = "API Path ('http://127.0.0.1:8000/api/...').";
             pd.Required = true;
 
-            // JSON State Name
+            // Output JSON State Name
             pd = schema.AddExpressionProperty("EntityStateName", "");
-            pd.DisplayName = "Entity State Name";
-            pd.Description = "String containing name of entity's state.";
+            pd.DisplayName = "OutputState";
+            pd.Description = "String containing name of entity's state that holds API response.";
             pd.Required = true;
+
+            // List of input states
+            pd = schema.AddExpressionProperty("InputStateNames", "");
+            pd.DisplayName = "Inputs";
+            pd.Description = "List of states that will be passed to API, and will be changed based on response";
+            pd.Required = true;
+
         }
 
         /// <summary>
@@ -109,21 +117,65 @@ namespace SimioToFastAPI
             string stateName = stateNameProp.GetStringValue(context);
             stateName = stateName.Trim('"');
 
+            // Fetch and parse input states
+            IPropertyReader inputNamesProp = _properties.GetProperty("InputStateNames") as IPropertyReader;
+            string inputString = inputNamesProp.GetStringValue(context);
+            
+            inputString = inputString.Trim('"');
+            string[] inputStrings = inputString.Split(',');
+
+
 
             // Fetch the associated object (entity)
             IElementData associatedObject = context.AssociatedObject;
             
             IStates associatedStates = associatedObject.States;
 
-            IStringState jsonState = associatedStates[stateName] as IStringState;
+            
+
+            // Convert input states into dictionary
+            Dictionary<string, object> inputDict = new Dictionary<string, object>();
+
+            for (int i = 0; i < inputStrings.Length; i++)
+            {
+                double temp = associatedStates[inputStrings[i]].StateValue;
+                // If the state value is valid, use that, otherwise try string value
+                if (!Double.IsNaN(temp))
+                    inputDict[inputStrings[i]] = temp;
+                else
+                    inputDict[inputStrings[i]] = (associatedStates[inputStrings[i]] as IStringState).Value.Trim('"');
+
+            }
+
+            // Convert dictionary into json object
+            string jsonRequest = JsonConvert.SerializeObject(inputDict);
 
 
             // Call API
             API api = new API();
-            string jsonResponse = api.CallAPI(path);
+            string jsonResponse = api.CallAPI(path, jsonRequest);
 
             // Set state to json string
+            IStringState jsonState = associatedStates[stateName] as IStringState;
+
             jsonState.Value = jsonResponse;
+
+
+            // Change state values that are returned
+            JObject outputObject = JObject.Parse(jsonResponse);
+
+            foreach (var property in outputObject)
+            {
+                if (property.Value.Type == JTokenType.Float)
+                {
+                    (associatedStates[property.Key]).StateValue = (float)property.Value;
+                }
+                else
+                {
+                    (associatedStates[property.Key] as IStringState).Value = (string)property.Value;
+                }
+            }
+
 
             return ExitType.FirstExit;
         }
