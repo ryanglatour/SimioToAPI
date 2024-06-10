@@ -153,8 +153,16 @@ namespace SimioToFastAPI
 
 
             // Call API
-            API api = new API();
-            string jsonResponse = api.CallAPI(path, jsonRequest);
+            string jsonResponse = "";
+            try
+            {
+                API api = new API();
+                jsonResponse = api.CallAPI(path, jsonRequest);
+            }
+            catch (Exception ex)
+            {
+                context.ExecutionInformation.ReportError($"{ex.Message}\nFailure to connect to API");
+            }
 
             // Set state to json string
             IStringState jsonState = associatedStates[stateName] as IStringState;
