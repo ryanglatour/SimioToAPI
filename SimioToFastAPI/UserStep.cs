@@ -122,6 +122,7 @@ namespace SimioToFastAPI
             string inputString = inputNamesProp.GetStringValue(context);
             
             inputString = inputString.Trim('"');
+            inputString = inputString.Replace(" ", string.Empty);
             string[] inputStrings = inputString.Split(',');
 
 
@@ -166,13 +167,20 @@ namespace SimioToFastAPI
 
             foreach (var property in outputObject)
             {
-                if (property.Value.Type == JTokenType.Float)
+                try
                 {
-                    (associatedStates[property.Key]).StateValue = (float)property.Value;
+                    if (property.Value.Type == JTokenType.Float)
+                    {
+                        (associatedStates[property.Key]).StateValue = (float)property.Value;
+                    }
+                    else
+                    {
+                        (associatedStates[property.Key] as IStringState).Value = (string)property.Value;
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    (associatedStates[property.Key] as IStringState).Value = (string)property.Value;
+                    context.ExecutionInformation.ReportError($"State with name {property.Key} could not be changed/be found.");
                 }
             }
 
