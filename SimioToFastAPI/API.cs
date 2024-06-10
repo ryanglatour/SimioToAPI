@@ -10,12 +10,19 @@ namespace SimioToFastAPI
 {
     internal class API
     {
+
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public API()
+        {
+            _httpClientFactory = HttpClientFactoryProvider.GetHttpClientFactory();
+        }
         public string CallAPI(string path, string jsonRequest)
         {
             string ret;
-
-            using (var client = new HttpClient())
-            {
+            
+            HttpClient client = _httpClientFactory.CreateClient();
+            
                 var endpoint = new Uri(path);
                 var content = new StringContent(jsonRequest, System.Text.Encoding.UTF8, "application/json");
 
@@ -23,7 +30,7 @@ namespace SimioToFastAPI
 
                 var jsonResponse = result.Content.ReadAsStringAsync().Result;
                 ret = jsonResponse;
-            }
+            
 
             return ret;
         }
